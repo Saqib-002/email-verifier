@@ -73,7 +73,7 @@ def monitor_and_merge(job_id: str, total_chunks: int):
     while True:
         processed = 0
         for i in range(total_chunks):
-            blob = bucket.blob(f"output_chunk_{i}.csv")
+            blob = bucket.blob(f"{job_id}/output_chunk_{i}.csv")
             if blob.exists():
                 processed += 1
         if processed == total_chunks:
