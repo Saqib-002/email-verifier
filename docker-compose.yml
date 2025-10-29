@@ -8,6 +8,7 @@ services:
       - GCS_BUCKET=email-verifier-bucket
       - SPLITTER_URL=https://us-central1-email-verifier-475805.cloudfunctions.net/csv-splitter
       - REDIS_HOST=redis
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/sa-key.json
     depends_on:
       - redis
 
