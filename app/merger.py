@@ -4,7 +4,18 @@ import io
 import time
 import json
 from .cache import redis_client
+import subprocess
 
+def scale_mig_down():
+    try:
+        subprocess.run([
+            "gcloud", "compute", "instance-groups", "managed", "resize",
+            "verifier-mig", "--size", "0",
+            "--zone", "us-central1-a", "--quiet"
+        ], check=True)
+        print("Scaled MIG down to 0")
+    except Exception as e:
+        print(f"Scale-down failed: {e}")
 def merge_outputs(bucket_name: str, job_id: str, total_chunks: int) -> str:
     client = storage.Client()
     bucket = client.bucket(bucket_name)
@@ -13,7 +24,7 @@ def merge_outputs(bucket_name: str, job_id: str, total_chunks: int) -> str:
     with open(output_path, 'w', newline='', encoding='utf-8') as outfile:
         writer = None
         for i in range(total_chunks):
-            blob = bucket.blob(f"output_chunk_{i}.csv")
+            blob = bucket.blob(f"{job_id}/output_chunk_{i}.csv")
             if not blob.exists():
                 time.sleep(2)
                 i -= 1  # retry
@@ -27,7 +38,7 @@ def merge_outputs(bucket_name: str, job_id: str, total_chunks: int) -> str:
                 writer.writerow(row)
     
     # Upload merged
-    merged_blob = bucket.blob(f"final_result_{job_id}.csv")
+    merged_blob = bucket.blob(f"{job_id}/final_result.csv")
     merged_blob.upload_from_filename(output_path)
     
     # Update status
@@ -37,5 +48,5 @@ def merge_outputs(bucket_name: str, job_id: str, total_chunks: int) -> str:
         "final_file": f"gs://{bucket_name}/final_result_{job_id}.csv"
     }
     redis_client.setex(f"job:{job_id}", 86400 * 30, json.dumps(status))
-    
+    scale_mig_down()
     return merged_blob.public_url

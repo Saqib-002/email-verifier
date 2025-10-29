@@ -4,6 +4,7 @@ import uvicorn
 import uuid
 import time
 import requests
+import subprocess
 from google.cloud import storage
 from .schemas import UploadResponse, JobStatus
 from .cache import set_job_status, get_job_status, set_total_chunks,redis_client
@@ -18,11 +19,30 @@ SPLITTER_URL = os.getenv("SPLITTER_URL")  # e.g., Cloud Function URL
 client = storage.Client()
 bucket = client.bucket(BUCKET_NAME)
 
+def scale_mig_up(job_id: str, desired_count: int = 100):
+    try:
+        subprocess.run([
+            "gcloud", "compute", "instance-groups", "managed", "resize",
+            "verifier-mig", "--size", str(desired_count),
+            "--zone", "us-central1-a", "--quiet"
+        ], check=True)
+        print(f"Scaled MIG to {desired_count} for job {job_id}")
+    except Exception as e:
+        print(f"Scale-up failed: {e}")
+def monitor_splitter_completion(job_id: str, num_chunks: int):
+    bucket = storage.Client().bucket(BUCKET_NAME)
+    while True:
+        chunks = list(bucket.list_blobs(prefix=f"{job_id}/input_chunk_"))
+        if len(chunks) == num_chunks:
+            scale_mig_up(job_id, min(num_chunks, 100))
+            break
+        time.sleep(5)
 def trigger_splitter(job_id: str, input_object: str, num_chunks: int):
     payload = {
         "num_chunks": num_chunks,
         "input_object": input_object,
-        "bucket_name": BUCKET_NAME
+        "bucket_name": BUCKET_NAME,
+        "job_id": job_id
     }
     try:
         requests.post(SPLITTER_URL, json=payload, timeout=30)
@@ -80,6 +100,7 @@ async def upload_file(file: UploadFile = File(...), chunks: int = 50, background
     
     # Trigger splitter
     background.add_task(trigger_splitter, job_id, input_object, chunks)
+    background.add_task(monitor_splitter_completion, job_id, chunks)
     background.add_task(monitor_and_merge, job_id, chunks)
     
     return {"job_id": job_id, "message": "Upload successful", "input_file": status["input_file"]}
