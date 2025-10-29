@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+google-cloud-storage
+redis
+pydantic
+python-multipart
+gunicorn
+sqlalchemy
+psycopg2-binary
