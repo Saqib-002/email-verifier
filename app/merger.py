@@ -4,15 +4,31 @@ import io
 import time
 import json
 from .cache import redis_client
-import subprocess
+import os
+
+from google.oauth2 import service_account
+from googleapiclient import discovery
+
+compute = None
+
+def get_compute_client():
+    global compute
+    if compute is None:
+        credentials = service_account.Credentials.from_service_account_file(
+            os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        )
+        compute = discovery.build('compute', 'v1', credentials=credentials)
+    return compute
 
 def scale_mig_down():
     try:
-        subprocess.run([
-            "gcloud", "compute", "instance-groups", "managed", "resize",
-            "verifier-mig", "--size", "0",
-            "--zone", "us-central1-a", "--quiet"
-        ], check=True)
+        client = get_compute_client()
+        client.instanceGroupManagers().resize(
+            project='email-verifier-475805',
+            zone='us-central1-a',
+            instanceGroupManager='verifier-mig',
+            size=0
+        ).execute()
         print("Scaled MIG down to 0")
     except Exception as e:
         print(f"Scale-down failed: {e}")

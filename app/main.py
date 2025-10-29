@@ -1,15 +1,14 @@
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
-from fastapi.responses import JSONResponse
-import uvicorn
 import uuid
 import time
 import requests
-import subprocess
 from google.cloud import storage
 from .schemas import UploadResponse, JobStatus
 from .cache import set_job_status, get_job_status, set_total_chunks,redis_client
 from .merger import merge_outputs
 import os
+from google.oauth2 import service_account
+from googleapiclient import discovery
 
 app = FastAPI(title="Email Verifier API", version="1.0")
 
@@ -18,14 +17,25 @@ SPLITTER_URL = os.getenv("SPLITTER_URL")  # e.g., Cloud Function URL
 
 client = storage.Client()
 bucket = client.bucket(BUCKET_NAME)
+compute = None
 
+def get_compute_client():
+    global compute
+    if compute is None:
+        credentials = service_account.Credentials.from_service_account_file(
+            os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        )
+        compute = discovery.build('compute', 'v1', credentials=credentials)
+    return compute
 def scale_mig_up(job_id: str, desired_count: int = 100):
     try:
-        subprocess.run([
-            "gcloud", "compute", "instance-groups", "managed", "resize",
-            "verifier-mig", "--size", str(desired_count),
-            "--zone", "us-central1-a", "--quiet"
-        ], check=True)
+        client = get_compute_client()
+        client.instanceGroupManagers().resize(
+            project='email-verifier-475805',
+            zone='us-central1-a',
+            instanceGroupManager='verifier-mig',
+            size=desired_count
+        ).execute()
         print(f"Scaled MIG to {desired_count} for job {job_id}")
     except Exception as e:
         print(f"Scale-up failed: {e}")
