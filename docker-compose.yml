@@ -9,6 +9,8 @@ services:
       - SPLITTER_URL=https://us-central1-email-verifier-475805.cloudfunctions.net/csv-splitter
       - REDIS_HOST=redis
       - GOOGLE_APPLICATION_CREDENTIALS=/app/sa-key.json
+    volumes:
+      - ./sa-key.json:/app/sa-key.json:ro
     depends_on:
       - redis
 
