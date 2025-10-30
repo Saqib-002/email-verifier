@@ -17,6 +17,7 @@ class JobStatus(BaseModel):
     stats: Optional[Dict] = None
     progress: Optional[str] = None
     final_file: Optional[str] = None
+    stats: Optional[Dict[str, int]] = None
 
     class Config:
         extra = "ignore"

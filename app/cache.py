@@ -21,3 +21,10 @@ def incr_chunk_processed(job_id: str):
 
 def set_total_chunks(job_id: str, count: int):
     redis_client.set(f"job:{job_id}:total", count, ex=86400 * 7)
+def get_job_stats(job_id: str):
+    """Get aggregated stats hash from Redis."""
+    stats_key = f"job:{job_id}:stats"
+    stats_raw = redis_client.hgetall(stats_key)
+    if not stats_raw:
+        return None
+    return {k: int(v) for k, v in stats_raw.items()}
