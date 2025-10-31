@@ -210,10 +210,9 @@ def list_jobs():
 def list_results():
     """Lists all successfully merged final_result.csv files."""
     prefixes = set()
-    # List all "directories" (job_id prefixes)
-    for blob in bucket.list_blobs(delimiter='/'):
-        if blob.prefix:
-            prefixes.add(blob.prefix)
+    iterator = bucket.list_blobs(delimiter='/')
+    for prefix in iterator.prefixes:
+        prefixes.add(prefix)
     
     final_files = []
     for prefix in prefixes:
