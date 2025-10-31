@@ -97,7 +97,7 @@ def merge_outputs(bucket_name: str, job_id: str, total_chunks: int) -> str:
     status = {
         "status": "done",
         "completed_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "final_file": f"gs://{bucket_name}/final_result_{job_id}.csv"
+        "final_file": f"gs://{bucket_name}/{job_id}/final_result.csv"
     }
     redis_client.setex(f"job:{job_id}", 86400 * 30, json.dumps(status))
     scale_mig_down()

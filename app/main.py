@@ -126,46 +126,6 @@ async def upload_file(file: UploadFile = File(...), chunks: int = 50, background
     
     return {"job_id": job_id, "message": "Upload successful", "input_file": status["input_file"]}
 
-@app.get("/status/{job_id}", response_model=JobStatus)
-def get_status(job_id: str):
-    data = get_job_status(job_id)
-    if not data:
-        raise HTTPException(404, "Job not found")
-
-    # --- START: MODIFIED (REQ 4) ---
-    total = data.get("total_chunks") or 0
-    processed = data.get("processed_chunks") or 0 # Get from stored status
-    
-    # If job is not done, poll GCS for a more up-to-date 'processed' count
-    if data.get("status") not in ["done", "failed", "merging"] and total > 0:
-        processed_gcs = 0
-        for i in range(total):
-            if bucket.blob(f"{job_id}/output_chunk_{i}.csv").exists():
-                processed_gcs += 1
-        processed = processed_gcs # Use live GCS count
-
-    # Get aggregated stats from Redis
-    live_stats = get_job_stats(job_id)
-    
-    # If job is 'done', stats should already be in 'data'. If not, use live_stats.
-    stats_to_show = data.get("stats") or live_stats
-    # --- END: MODIFIED ---
-
-    # Build response with defaults
-    response = {
-        "job_id": job_id,
-        "status": data.get("status", "unknown"),
-        "uploaded_at": data.get("uploaded_at", ""),
-        "started_at": data.get("started_at"),
-        "completed_at": data.get("completed_at"),
-        "total_chunks": total,
-        "processed_chunks": processed,
-        "progress": f"{processed}/{total}" if total else "0/0",
-        "stats": stats_to_show, # <-- MODIFIED
-        "final_file": data.get("final_file")
-    }
-
-    return response
 
 @app.get("/status/{job_id}", response_model=JobStatus)
 def get_status(job_id: str):
@@ -176,9 +136,12 @@ def get_status(job_id: str):
     # Enrich with live GCS stats
     total = int(redis_client.get(f"job:{job_id}:total") or 0)
     processed = 0
-    for i in range(total):
-        if bucket.blob(f"output_chunk_{i}.csv").exists():
-            processed += 1
+    if total > 0:
+        blobs = list(bucket.list_blobs(prefix=f"{job_id}/output_chunk_"))
+        processed = len(blobs)
+        for i in range(total):
+            if bucket.blob(f"output_chunk_{i}.csv").exists():
+                processed += 1
 
     # Build response with defaults
     response = {
@@ -211,8 +174,17 @@ def list_results():
     """Lists all successfully merged final_result.csv files."""
     prefixes = set()
     iterator = bucket.list_blobs(delimiter='/')
-    for prefix in iterator.prefixes:
-        prefixes.add(prefix)
+    try:
+        for page in iterator.pages:
+            # We don't need the blobs themselves, just the act of iterating
+            # to populate the prefixes.
+            pass
+    except Exception as e:
+        print(f"Error listing blobs: {e}")
+        # This could be a permissions issue
+        raise HTTPException(500, f"Error listing GCS prefixes: {e}")
+    prefixes = iterator.prefixes
+    print(f"Prefixes found: {prefixes}")
     
     final_files = []
     for prefix in prefixes:
@@ -252,7 +224,7 @@ def download_result(job_id: str):
             method="GET",
         )
         # Redirect the user directly to the download
-        return RedirectResponse(url=url)
+        return url
     except Exception as e:
         print(f"Error generating signed URL for {job_id}: {e}")
         raise HTTPException(500, "Could not generate download link.")
