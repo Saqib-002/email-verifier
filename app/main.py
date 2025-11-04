@@ -45,7 +45,7 @@ def monitor_splitter_completion(job_id: str, num_chunks: int):
     while True:
         chunks = list(bucket.list_blobs(prefix=f"{job_id}/input_chunk_"))
         if len(chunks) == num_chunks:
-            scale_mig_up(job_id, min(num_chunks, 100))
+            scale_mig_up(job_id, min(num_chunks, 250))
             break
         time.sleep(5)
 def trigger_splitter(job_id: str, input_object: str, num_chunks: int):
