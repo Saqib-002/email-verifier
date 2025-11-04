@@ -4,9 +4,8 @@ import time
 import requests
 from google.cloud import storage
 from .schemas import UploadResponse, JobStatus
-from .cache import set_job_status, get_job_status, set_total_chunks, redis_client, get_job_stats
-from .merger import merge_outputs, scale_mig_down
-from fastapi.responses import RedirectResponse
+from .cache import set_job_status, get_job_status, set_total_chunks, redis_client
+from .merger import merge_outputs
 import datetime
 import os
 from google.oauth2 import service_account

@@ -105,6 +105,4 @@ def merge_outputs(bucket_name: str, job_id: str, total_chunks: int) -> str:
 
     # REMOVED: Status update and scale_mig_down (moved to main.py)
     
-    # Return GCS URI path
-    return f"gs://{bucket_name}/{merged_blob_name}"
     return merged_blob.public_url

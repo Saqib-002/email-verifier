@@ -10,7 +10,7 @@ redis_client = redis.Redis(
 )
 
 def set_job_status(job_id: str, data: dict):
-    redis_client.setex(f"job:{job_id}", 86400 * 7, json.dumps(data))  # 7 days
+    redis_client.set(f"job:{job_id}", json.dumps(data))  # 7 days
 
 def get_job_status(job_id: str):
     data = redis_client.get(f"job:{job_id}")
@@ -20,7 +20,7 @@ def incr_chunk_processed(job_id: str):
     return redis_client.incr(f"job:{job_id}:processed")
 
 def set_total_chunks(job_id: str, count: int):
-    redis_client.set(f"job:{job_id}:total", count, ex=86400 * 7)
+    redis_client.set(f"job:{job_id}:total", count)
 def get_job_stats(job_id: str):
     """Get aggregated stats hash from Redis."""
     stats_key = f"job:{job_id}:stats"
